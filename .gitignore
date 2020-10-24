@@ -1,0 +1,5 @@
+cmd/whatbin/whatbin
+cmd/whatbin/whatbin.yml
+pkg/providers/salford/salford_test.go
+.idea/
+whatbin
