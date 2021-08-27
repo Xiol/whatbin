@@ -8,6 +8,7 @@ import (
 	"github.com/Xiol/whatbin/pkg/config"
 	"github.com/Xiol/whatbin/pkg/notifiers/pushover"
 	"github.com/Xiol/whatbin/pkg/notifiers/stdout"
+	"github.com/Xiol/whatbin/pkg/providers/corby"
 	"github.com/Xiol/whatbin/pkg/providers/salford"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
@@ -23,6 +24,8 @@ func main() {
 	switch viper.GetString("provider") {
 	case "salford":
 		p = salford.New(viper.GetInt("house_number"), viper.GetString("postcode"), httpClient)
+	case "corby":
+		p = corby.New(viper.GetString("first_line"), viper.GetString("postcode"))
 	default:
 		log.WithField("provider", viper.GetString("provider")).Fatal("unknown provider")
 	}

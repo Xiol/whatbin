@@ -10,3 +10,11 @@ func Contains(list []time.Time, test time.Time) bool {
 	}
 	return false
 }
+
+func OutTomorrow(date time.Time) bool {
+	tomorrow := time.Now().AddDate(0, 0, 1)
+	if Contains([]time.Time{date}, tomorrow) {
+		return true
+	}
+	return false
+}
