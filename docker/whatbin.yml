@@ -1,0 +1,11 @@
+---
+# Empty config file for Docker container so Viper loads from environment correctly.
+# https://github.com/spf13/viper/issues/584
+
+house_number: 0
+first_line: ""
+postcode: ""
+provider: ""
+notifier: ""
+pushover_api_token: ""
+pushover_users: []

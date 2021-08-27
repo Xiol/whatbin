@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Xiol/whatbin"
 	"github.com/Xiol/whatbin/pkg/dateutils"
 	"github.com/chromedp/chromedp"
 )
@@ -22,7 +23,11 @@ func New(firstLine, postcode string) *Provider {
 }
 
 func (p *Provider) Bins() ([]string, error) {
-	ctx, cancel := chromedp.NewContext(context.Background())
+	opts := append(chromedp.DefaultExecAllocatorOptions[:], chromedp.NoSandbox)
+	allocCtx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
+	defer cancel()
+
+	ctx, cancel := chromedp.NewContext(allocCtx)
 	defer cancel()
 
 	ctx, cancel = context.WithTimeout(ctx, 60*time.Second)
@@ -64,15 +69,19 @@ func (p *Provider) Bins() ([]string, error) {
 		}
 	}
 
+	if len(binsOut) == 0 {
+		return nil, whatbin.ErrNoBinsToday
+	}
+
 	return binsOut, nil
 }
 
 func (p *Provider) binOut(d string) (bool, error) {
-	if d == "Today" || d == "Tomorrow" {
+	if d == "Tomorrow" {
 		return true, nil
 	}
 
-	if strings.Contains(d, "null") {
+	if strings.Contains(d, "null") || d == "Today" {
 		return false, nil
 	}
 
