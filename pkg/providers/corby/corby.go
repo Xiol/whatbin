@@ -2,12 +2,24 @@ package corby
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/Xiol/whatbin"
 	"github.com/Xiol/whatbin/pkg/dateutils"
 	"github.com/chromedp/chromedp"
+	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
+)
+
+type BinColour string
+
+const (
+	Green     BinColour = "Green"
+	Blue      BinColour = "Blue"
+	Black     BinColour = "Black"
+	FoodWaste BinColour = "Food Waste"
 )
 
 type Provider struct {
@@ -27,16 +39,13 @@ func (p *Provider) Bins() ([]string, error) {
 	allocCtx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
 	defer cancel()
 
-	ctx, cancel := chromedp.NewContext(allocCtx)
+	ctx, cancel := chromedp.NewContext(allocCtx, chromedp.WithLogf(log.Infof))
 	defer cancel()
 
-	ctx, cancel = context.WithTimeout(ctx, 60*time.Second)
+	ctx, cancel = context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
 
-	var green string
-	var blue string
-	var black string
-	var foodWaste string
+	var type1, date1, type2, date2, type3, date3, type4, date4 string
 	err := chromedp.Run(ctx,
 		chromedp.Navigate("https://my.corby.gov.uk/service/Waste_Collection_Date"),
 		chromedp.WaitVisible(`#address_search`),
@@ -47,25 +56,44 @@ func (p *Provider) Bins() ([]string, error) {
 		chromedp.Sleep(5*time.Second),
 		chromedp.WaitVisible(`#AF-Form-56d32560-ecaf-4763-87df-d544efa65a19 > section.all-sections.col-xs-12.AF-col-xs-fluid.col-sm-12 > section > div:nth-child(17) > div > span > table > thead > tr > th:nth-child(1)`),
 		chromedp.Sleep(5*time.Second),
-		chromedp.Text(`#WasteCollections > tr:nth-child(1) > td:nth-child(3) > h5`, &green, chromedp.NodeVisible),
-		chromedp.Text(`#WasteCollections > tr:nth-child(2) > td:nth-child(3) > h5`, &blue, chromedp.NodeVisible),
-		chromedp.Text(`#WasteCollections > tr:nth-child(3) > td:nth-child(3) > h5`, &black, chromedp.NodeVisible),
-		chromedp.Text(`#WasteCollections > tr:nth-child(4) > td:nth-child(3) > h5`, &foodWaste, chromedp.NodeVisible),
+		chromedp.Text(`#WasteCollections > tr:nth-child(1) > td:nth-child(3) > h5`, &date1, chromedp.NodeVisible),
+		chromedp.Text(`#WasteCollections > tr:nth-child(2) > td:nth-child(3) > h5`, &date2, chromedp.NodeVisible),
+		chromedp.Text(`#WasteCollections > tr:nth-child(3) > td:nth-child(3) > h5`, &date3, chromedp.NodeVisible),
+		chromedp.Text(`#WasteCollections > tr:nth-child(4) > td:nth-child(3) > h5`, &date4, chromedp.NodeVisible),
+		chromedp.Text(`#WasteCollections > tr:nth-child(1) > td:nth-child(2) > b`, &type1, chromedp.NodeVisible),
+		chromedp.Text(`#WasteCollections > tr:nth-child(2) > td:nth-child(2) > b`, &type2, chromedp.NodeVisible),
+		chromedp.Text(`#WasteCollections > tr:nth-child(3) > td:nth-child(2) > b`, &type3, chromedp.NodeVisible),
+		chromedp.Text(`#WasteCollections > tr:nth-child(4) > td:nth-child(2) > b`, &type4, chromedp.NodeVisible),
 	)
 	if err != nil {
 		return nil, err
 	}
 
+	log.WithFields(log.Fields{
+		type1: date1,
+		type2: date2,
+		type3: date3,
+		type4: date4,
+	}).Debug("corby: retrieved dates for bins")
+
 	var binsOut []string
 
-	for k, v := range map[string]string{"Green": green, "Blue": blue, "Black": black, "Food Waste": foodWaste} {
-		out, err := p.binOut(v)
+	for _, td := range [][]string{{type1, date1}, {type2, date2}, {type3, date3}, {type4, date4}} {
+		out, err := p.binOut(td[1])
 		if err != nil {
 			return nil, err
 		}
 
 		if out {
-			binsOut = append(binsOut, k)
+			id, err := p.identify(td[0])
+			if err != nil {
+				return nil, err
+			}
+
+			binsOut = append(binsOut, string(id))
+			if id == Blue && viper.GetBool("corby_green_out_with_blue") {
+				binsOut = append(binsOut, string(Green))
+			}
 		}
 	}
 
@@ -74,6 +102,26 @@ func (p *Provider) Bins() ([]string, error) {
 	}
 
 	return binsOut, nil
+}
+
+func (p *Provider) identify(t string) (BinColour, error) {
+	if strings.Index(t, "Green Garden") == 0 {
+		return Green, nil
+	}
+
+	if strings.Index(t, "Brown or Blue") == 0 {
+		return Blue, nil
+	}
+
+	if strings.Index(t, "Green Food") == 0 {
+		return FoodWaste, nil
+	}
+
+	if strings.Index(t, "Black") == 0 {
+		return Black, nil
+	}
+
+	return BinColour(""), fmt.Errorf("corby: unable to identify bin colour for '%s'", t)
 }
 
 func (p *Provider) binOut(d string) (bool, error) {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"net/http"
 	"time"
 
@@ -15,6 +16,13 @@ import (
 )
 
 func main() {
+	debug := flag.Bool("debug", false, "enable debug logging")
+	flag.Parse()
+
+	if *debug {
+		log.SetLevel(log.DebugLevel)
+	}
+
 	httpClient := &http.Client{Timeout: 10 * time.Second}
 	if err := config.Init(); err != nil {
 		log.WithError(err).Fatal("config load failed")
