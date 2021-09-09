@@ -42,7 +42,7 @@ func (p *Provider) Bins() ([]string, error) {
 	ctx, cancel := chromedp.NewContext(allocCtx, chromedp.WithLogf(log.Infof))
 	defer cancel()
 
-	ctx, cancel = context.WithTimeout(ctx, 90*time.Second)
+	ctx, cancel = context.WithTimeout(ctx, 300*time.Second)
 	defer cancel()
 
 	var type1, date1, type2, date2, type3, date3, type4, date4 string

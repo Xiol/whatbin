@@ -2,7 +2,7 @@ module github.com/Xiol/whatbin
 
 require (
 	github.com/chromedp/cdproto v0.0.0-20210823203301-2c0adcc9edc4 // indirect
-	github.com/chromedp/chromedp v0.7.4 // indirect
+	github.com/chromedp/chromedp v0.7.4
 	github.com/gocolly/colly/v2 v2.1.0
 	github.com/knq/sysutil v0.0.0-20191005231841-15668db23d08 // indirect
 	github.com/sirupsen/logrus v1.7.0
