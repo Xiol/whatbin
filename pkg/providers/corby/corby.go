@@ -35,6 +35,8 @@ func New(firstLine, postcode string) *Provider {
 }
 
 func (p *Provider) Bins() ([]string, error) {
+	log.Info("corby: initialising provider")
+
 	opts := append(chromedp.DefaultExecAllocatorOptions[:], chromedp.NoSandbox)
 	allocCtx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
 	defer cancel()
@@ -44,6 +46,8 @@ func (p *Provider) Bins() ([]string, error) {
 
 	ctx, cancel = context.WithTimeout(ctx, 300*time.Second)
 	defer cancel()
+
+	log.Info("corby: running scrape for https://my.corby.gov.uk/service/Waste_Collection_Date")
 
 	var type1, date1, type2, date2, type3, date3, type4, date4 string
 	err := chromedp.Run(ctx,
@@ -55,7 +59,7 @@ func (p *Provider) Bins() ([]string, error) {
 		chromedp.Click(`#AF-Form-56765be8-8e4b-4a2d-9c9f-cfa55a71dab5 > div > nav > div.fillinButtonsRight > button`),
 		chromedp.Sleep(5*time.Second),
 		chromedp.WaitVisible(`#AF-Form-56d32560-ecaf-4763-87df-d544efa65a19 > section.all-sections.col-xs-12.AF-col-xs-fluid.col-sm-12 > section > div:nth-child(17) > div > span > table > thead > tr > th:nth-child(1)`),
-		chromedp.Sleep(5*time.Second),
+		chromedp.Sleep(20*time.Second),
 		chromedp.Text(`#WasteCollections > tr:nth-child(1) > td:nth-child(3) > h5`, &date1, chromedp.NodeVisible),
 		chromedp.Text(`#WasteCollections > tr:nth-child(2) > td:nth-child(3) > h5`, &date2, chromedp.NodeVisible),
 		chromedp.Text(`#WasteCollections > tr:nth-child(3) > td:nth-child(3) > h5`, &date3, chromedp.NodeVisible),
@@ -74,7 +78,7 @@ func (p *Provider) Bins() ([]string, error) {
 		type2: date2,
 		type3: date3,
 		type4: date4,
-	}).Debug("corby: retrieved dates for bins")
+	}).Info("corby: retrieved dates for bins")
 
 	var binsOut []string
 
@@ -98,8 +102,11 @@ func (p *Provider) Bins() ([]string, error) {
 	}
 
 	if len(binsOut) == 0 {
+		log.Info("corby: no bins out today")
 		return nil, whatbin.ErrNoBinsToday
 	}
+
+	log.WithField("bins", binsOut).Info("corby: bins out today")
 
 	return binsOut, nil
 }
