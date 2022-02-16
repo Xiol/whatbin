@@ -9,3 +9,4 @@ provider: ""
 notifier: ""
 pushover_api_token: ""
 pushover_users: []
+enable_debugging: false

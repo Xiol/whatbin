@@ -41,7 +41,12 @@ func (p *Provider) Bins() ([]string, error) {
 	allocCtx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
 	defer cancel()
 
-	ctx, cancel := chromedp.NewContext(allocCtx, chromedp.WithLogf(log.Infof))
+	ctx, cancel := chromedp.NewContext(
+		allocCtx,
+		chromedp.WithDebugf(log.Debugf),
+		chromedp.WithErrorf(log.Errorf),
+		chromedp.WithLogf(log.Infof),
+	)
 	defer cancel()
 
 	ctx, cancel = context.WithTimeout(ctx, 300*time.Second)
