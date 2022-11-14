@@ -59,7 +59,7 @@ func (p *Provider) Bins() ([]string, error) {
 		chromedp.Navigate("https://my.corby.gov.uk/service/Waste_Collection_Date"),
 		chromedp.WaitVisible(`#address_search`),
 		chromedp.SendKeys(`#address_search`, p.postcode),
-		chromedp.Sleep(5*time.Second),
+		chromedp.Sleep(10*time.Second),
 		chromedp.SendKeys(`#ChooseAddress`, p.firstLine),
 		chromedp.Click(`#AF-Form-56765be8-8e4b-4a2d-9c9f-cfa55a71dab5 > div > nav > div.fillinButtonsRight > button`),
 		chromedp.Sleep(5*time.Second),
@@ -145,7 +145,7 @@ func (p *Provider) binOut(d string) (bool, error) {
 		return false, nil
 	}
 
-	t, err := time.Parse("Friday, 02 January 2006", d)
+	t, err := time.Parse("Monday, 02 January 2006", d)
 	if err != nil {
 		return false, err
 	}
