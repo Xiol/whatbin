@@ -10,7 +10,6 @@ import (
 	"github.com/Xiol/whatbin/pkg/dateutils"
 	"github.com/chromedp/chromedp"
 	log "github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 )
 
 type BinColour string
@@ -62,17 +61,17 @@ func (p *Provider) Bins() ([]string, error) {
 		chromedp.Sleep(10*time.Second),
 		chromedp.SendKeys(`#ChooseAddress`, p.firstLine),
 		chromedp.Click(`#AF-Form-56765be8-8e4b-4a2d-9c9f-cfa55a71dab5 > div > nav > div.fillinButtonsRight > button`),
-		chromedp.Sleep(5*time.Second),
-		chromedp.WaitVisible(`#AF-Form-56d32560-ecaf-4763-87df-d544efa65a19 > section.all-sections.col-xs-12.AF-col-xs-fluid.col-sm-12 > section > div:nth-child(17) > div > span > table > thead > tr > th:nth-child(1)`),
+		chromedp.Sleep(10*time.Second),
+		chromedp.WaitVisible(`#AF-Form-56d32560-ecaf-4763-87df-d544efa65a19 > section:nth-child(2) > section:nth-child(1) > div:nth-child(18) > div:nth-child(1) > span:nth-child(1) > table:nth-child(3) > thead:nth-child(1) > tr:nth-child(1) > th:nth-child(1)`, chromedp.RetryInterval(1*time.Second)),
 		chromedp.Sleep(20*time.Second),
-		chromedp.Text(`#WasteCollections > tr:nth-child(1) > td:nth-child(3) > h5`, &date1, chromedp.NodeVisible),
-		chromedp.Text(`#WasteCollections > tr:nth-child(2) > td:nth-child(3) > h5`, &date2, chromedp.NodeVisible),
-		chromedp.Text(`#WasteCollections > tr:nth-child(3) > td:nth-child(3) > h5`, &date3, chromedp.NodeVisible),
-		chromedp.Text(`#WasteCollections > tr:nth-child(4) > td:nth-child(3) > h5`, &date4, chromedp.NodeVisible),
-		chromedp.Text(`#WasteCollections > tr:nth-child(1) > td:nth-child(2) > b`, &type1, chromedp.NodeVisible),
-		chromedp.Text(`#WasteCollections > tr:nth-child(2) > td:nth-child(2) > b`, &type2, chromedp.NodeVisible),
-		chromedp.Text(`#WasteCollections > tr:nth-child(3) > td:nth-child(2) > b`, &type3, chromedp.NodeVisible),
-		chromedp.Text(`#WasteCollections > tr:nth-child(4) > td:nth-child(2) > b`, &type4, chromedp.NodeVisible),
+		chromedp.Text(`#WasteCollections > tr:nth-child(1) > td:nth-child(3) > h5:nth-child(1)`, &date1, chromedp.NodeVisible),
+		chromedp.Text(`#WasteCollections > tr:nth-child(2) > td:nth-child(3) > h5:nth-child(1)`, &date2, chromedp.NodeVisible),
+		chromedp.Text(`#WasteCollections > tr:nth-child(3) > td:nth-child(3) > h5:nth-child(1)`, &date3, chromedp.NodeVisible),
+		chromedp.Text(`#WasteCollections > tr:nth-child(4) > td:nth-child(3) > h5:nth-child(1)`, &date4, chromedp.NodeVisible),
+		chromedp.Text(`#WasteCollections > tr:nth-child(1) > td:nth-child(2) > b:nth-child(1)`, &type1, chromedp.NodeVisible),
+		chromedp.Text(`#WasteCollections > tr:nth-child(2) > td:nth-child(2) > b:nth-child(1)`, &type2, chromedp.NodeVisible),
+		chromedp.Text(`#WasteCollections > tr:nth-child(3) > td:nth-child(2) > b:nth-child(1)`, &type3, chromedp.NodeVisible),
+		chromedp.Text(`#WasteCollections > tr:nth-child(4) > td:nth-child(2) > b:nth-child(1)`, &type4, chromedp.NodeVisible),
 	)
 	if err != nil {
 		return nil, err
@@ -100,9 +99,10 @@ func (p *Provider) Bins() ([]string, error) {
 			}
 
 			binsOut = append(binsOut, string(id))
-			if id == Blue && viper.GetBool("corby_green_out_with_blue") {
-				binsOut = append(binsOut, string(Green))
-			}
+			// Garden waste dates are now reported correctly, making this option unnecessary. TODO remove
+			// if id == Blue && viper.GetBool("corby_green_out_with_blue") {
+			// 	binsOut = append(binsOut, string(Green))
+			// }
 		}
 	}
 
@@ -117,19 +117,19 @@ func (p *Provider) Bins() ([]string, error) {
 }
 
 func (p *Provider) identify(t string) (BinColour, error) {
-	if strings.Index(t, "Green Garden") == 0 {
+	if strings.Index(t, "Garden Waste") == 0 {
 		return Green, nil
 	}
 
-	if strings.Index(t, "Brown or Blue") == 0 {
+	if strings.Index(t, "Recyclable Waste") == 0 {
 		return Blue, nil
 	}
 
-	if strings.Index(t, "Green Food") == 0 {
+	if strings.Index(t, "Food Waste") == 0 {
 		return FoodWaste, nil
 	}
 
-	if strings.Index(t, "Black") == 0 {
+	if strings.Index(t, "Non Recyclable Waste") == 0 {
 		return Black, nil
 	}
 
