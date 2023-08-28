@@ -56,7 +56,7 @@ func (p *Provider) Bins() ([]string, error) {
 	var type1, date1, type2, date2, type3, date3, type4, date4 string
 	err := chromedp.Run(ctx,
 		chromedp.Navigate("https://my.corby.gov.uk/service/Waste_Collection_Date"),
-		chromedp.WaitVisible(`#address_search`),
+		chromedp.WaitVisible(`#address_search`, chromedp.RetryInterval(1*time.Second)),
 		chromedp.SendKeys(`#address_search`, p.postcode),
 		chromedp.Sleep(10*time.Second),
 		chromedp.SendKeys(`#ChooseAddress`, p.firstLine),
