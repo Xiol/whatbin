@@ -62,7 +62,7 @@ func (p *Provider) Bins() ([]string, error) {
 		chromedp.SendKeys(`#ChooseAddress`, p.firstLine),
 		chromedp.Click(`#AF-Form-56765be8-8e4b-4a2d-9c9f-cfa55a71dab5 > div > nav > div.fillinButtonsRight > button`),
 		chromedp.Sleep(10*time.Second),
-		chromedp.WaitVisible(`#AF-Form-56d32560-ecaf-4763-87df-d544efa65a19 > section:nth-child(2) > section:nth-child(1) > div:nth-child(18) > div:nth-child(1) > span:nth-child(1) > table:nth-child(3) > thead:nth-child(1) > tr:nth-child(1) > th:nth-child(1)`, chromedp.RetryInterval(1*time.Second)),
+		chromedp.WaitVisible(`#WasteCollections`, chromedp.RetryInterval(1*time.Second)),
 		chromedp.Sleep(20*time.Second),
 		chromedp.Text(`#WasteCollections > tr:nth-child(1) > td:nth-child(3) > h5:nth-child(1)`, &date1, chromedp.NodeVisible),
 		chromedp.Text(`#WasteCollections > tr:nth-child(2) > td:nth-child(3) > h5:nth-child(1)`, &date2, chromedp.NodeVisible),
