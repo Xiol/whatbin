@@ -1,5 +1,5 @@
-FROM golang:1.20 AS builder
-RUN apt update && apt install -qqy upx make
+FROM golang:1.21 AS builder
+RUN apt update && apt install -qqy make
 WORKDIR /usr/src/whatbin
 ENV CGO_ENABLED=0
 ENV GOOS=linux
