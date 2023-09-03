@@ -145,6 +145,9 @@ func (p *Provider) binOut(d string) (bool, error) {
 		return false, nil
 	}
 
+	// Seem to be inserting extra data in the date field, remove it
+	d = strings.Replace(d, "Empty Garden 240L ", "", 1)
+
 	t, err := time.Parse("Monday, 02 January 2006", d)
 	if err != nil {
 		return false, err
