@@ -66,7 +66,7 @@ func (p *Provider) Bins() ([]string, error) {
 	// We have to put the bins out the night before, so we only care
 	// about collections that are taking place tomorrow. If there are
 	// no collections for tomorrow then don't do anything.
-	tomorrow := time.Now().AddDate(0, 0, 6)
+	tomorrow := time.Now().AddDate(0, 0, 1)
 	if len(nextCollections) == 0 || nextCollections[0].ParsedStart.Day() != tomorrow.Day() {
 		log.Info("corby: no collections pending")
 		return nil, whatbin.ErrNoBinsToday
