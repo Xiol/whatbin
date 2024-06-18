@@ -33,7 +33,7 @@ func main() {
 	case "salford":
 		p = salford.New(viper.GetInt("house_number"), viper.GetString("postcode"), httpClient)
 	case "corby":
-		p = corby.New(viper.GetString("first_line"), viper.GetString("postcode"))
+		p = corby.New(viper.GetString("uprn"))
 	default:
 		log.WithField("provider", viper.GetString("provider")).Fatal("unknown provider")
 	}

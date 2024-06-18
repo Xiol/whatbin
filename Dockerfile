@@ -1,4 +1,4 @@
-FROM golang:1.21 AS builder
+FROM golang:1.22 AS builder
 RUN apt update && apt install -qqy make
 WORKDIR /usr/src/whatbin
 ENV CGO_ENABLED=0
@@ -8,12 +8,18 @@ RUN go mod download
 COPY . .
 RUN make
 
-FROM chromedp/headless-shell:latest
-RUN apt update && apt -y upgrade && apt install -y ca-certificates curl
+FROM cgr.dev/chainguard/static:latest
 WORKDIR /whatbin
 COPY --from=builder /usr/src/whatbin/cmd/whatbin/whatbin /whatbin/whatbin
 COPY docker/whatbin.yml /whatbin/whatbin.yml
 ENTRYPOINT ["/whatbin/whatbin"]
+
+# FROM chromedp/headless-shell:latest
+# RUN apt update && apt -y upgrade && apt install -y ca-certificates curl
+# WORKDIR /whatbin
+# COPY --from=builder /usr/src/whatbin/cmd/whatbin/whatbin /whatbin/whatbin
+# COPY docker/whatbin.yml /whatbin/whatbin.yml
+# ENTRYPOINT ["/whatbin/whatbin"]
 
 # FROM alpine:3
 # RUN apk update && apk add --no-cache ca-certificates curl chromium

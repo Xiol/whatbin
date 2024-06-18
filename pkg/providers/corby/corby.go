@@ -1,160 +1,201 @@
 package corby
 
 import (
-	"context"
 	"fmt"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/Xiol/whatbin"
-	"github.com/Xiol/whatbin/pkg/dateutils"
-	"github.com/chromedp/chromedp"
+	"github.com/imroc/req/v3"
 	log "github.com/sirupsen/logrus"
 )
 
-type BinColour string
+const baseURL string = "https://cms.northnorthants.gov.uk/bin-collection-search/calendarevents"
 
-const (
-	Green     BinColour = "Green"
-	Blue      BinColour = "Blue"
-	Black     BinColour = "Black"
-	FoodWaste BinColour = "Food Waste"
-)
-
-type Provider struct {
-	firstLine string
-	postcode  string
+// Example collectionData:
+//
+//	{
+//	  "id": 25383766,
+//	  "title": "Empty CBC Bin Refuse bin 180l",
+//	  "subject": "This Premises",
+//	  "start": "/Date(1622847599000)/",
+//	  "end": null,
+//	  "link": "",
+//	  "color": "rgb(192,192,192)",
+//	  "textColor": "rgb(0,0,0)",
+//	  "complete": true,
+//	  "url": "#"
+//	}
+type collectionData struct {
+	ID          int       `json:"id"`
+	Title       string    `json:"title"`
+	Start       string    `json:"start"`
+	ParsedStart time.Time `json:"-"`
+	End         string    `json:"end"`
+	ParsedEnd   time.Time `json:"-"`
+	Complete    bool      `json:"complete"`
 }
 
-func New(firstLine, postcode string) *Provider {
+type Provider struct {
+	UPRN   string
+	client *req.Client
+}
+
+func New(uprn string) *Provider {
 	return &Provider{
-		firstLine: firstLine,
-		postcode:  postcode,
+		UPRN: uprn,
+		client: req.C().
+			SetTimeout(10 * time.Second).
+			SetUserAgent("WhatBin/1.0").
+			SetBaseURL(baseURL),
 	}
 }
 
 func (p *Provider) Bins() ([]string, error) {
-	log.Info("corby: initialising provider")
+	log.Info("corby: fetching next collection dates")
 
-	opts := append(chromedp.DefaultExecAllocatorOptions[:], chromedp.NoSandbox)
-	allocCtx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
-	defer cancel()
-
-	ctx, cancel := chromedp.NewContext(
-		allocCtx,
-		chromedp.WithDebugf(log.Debugf),
-		chromedp.WithErrorf(log.Errorf),
-		chromedp.WithLogf(log.Infof),
-	)
-	defer cancel()
-
-	ctx, cancel = context.WithTimeout(ctx, 300*time.Second)
-	defer cancel()
-
-	log.Info("corby: running scrape for https://my.corby.gov.uk/service/Waste_Collection_Date")
-
-	var type1, date1, type2, date2, type3, date3, type4, date4 string
-	err := chromedp.Run(ctx,
-		chromedp.Navigate("https://my.corby.gov.uk/service/Waste_Collection_Date"),
-		chromedp.WaitVisible(`#address_search`, chromedp.RetryInterval(1*time.Second)),
-		chromedp.SendKeys(`#address_search`, p.postcode),
-		chromedp.Sleep(10*time.Second),
-		chromedp.SendKeys(`#ChooseAddress`, p.firstLine),
-		chromedp.Click(`#AF-Form-56765be8-8e4b-4a2d-9c9f-cfa55a71dab5 > div > nav > div.fillinButtonsRight > button`),
-		chromedp.Sleep(10*time.Second),
-		chromedp.WaitVisible(`#WasteCollections`, chromedp.RetryInterval(1*time.Second)),
-		chromedp.Sleep(20*time.Second),
-		chromedp.Text(`#WasteCollections > tr:nth-child(1) > td:nth-child(3) > h5:nth-child(1)`, &date1, chromedp.NodeVisible),
-		chromedp.Text(`#WasteCollections > tr:nth-child(2) > td:nth-child(3) > h5:nth-child(1)`, &date2, chromedp.NodeVisible),
-		chromedp.Text(`#WasteCollections > tr:nth-child(3) > td:nth-child(3) > h5:nth-child(1)`, &date3, chromedp.NodeVisible),
-		chromedp.Text(`#WasteCollections > tr:nth-child(4) > td:nth-child(3) > h5:nth-child(1)`, &date4, chromedp.NodeVisible),
-		chromedp.Text(`#WasteCollections > tr:nth-child(1) > td:nth-child(2) > b:nth-child(1)`, &type1, chromedp.NodeVisible),
-		chromedp.Text(`#WasteCollections > tr:nth-child(2) > td:nth-child(2) > b:nth-child(1)`, &type2, chromedp.NodeVisible),
-		chromedp.Text(`#WasteCollections > tr:nth-child(3) > td:nth-child(2) > b:nth-child(1)`, &type3, chromedp.NodeVisible),
-		chromedp.Text(`#WasteCollections > tr:nth-child(4) > td:nth-child(2) > b:nth-child(1)`, &type4, chromedp.NodeVisible),
-	)
+	nextCollections, err := p.getNextCollectionData()
 	if err != nil {
 		return nil, err
 	}
 
-	log.WithFields(log.Fields{
-		type1: date1,
-		type2: date2,
-		type3: date3,
-		type4: date4,
-	}).Info("corby: retrieved dates for bins")
+	log.WithField("collections", len(nextCollections)).Debug("corby: retrieved next collection dates")
 
-	var binsOut []string
-
-	for _, td := range [][]string{{type1, date1}, {type2, date2}, {type3, date3}, {type4, date4}} {
-		out, err := p.binOut(td[1])
-		if err != nil {
-			return nil, err
-		}
-
-		if out {
-			id, err := p.identify(td[0])
-			if err != nil {
-				return nil, err
-			}
-
-			binsOut = append(binsOut, string(id))
-			// Garden waste dates are now reported correctly, making this option unnecessary. TODO remove
-			// if id == Blue && viper.GetBool("corby_green_out_with_blue") {
-			// 	binsOut = append(binsOut, string(Green))
-			// }
-		}
-	}
-
-	if len(binsOut) == 0 {
-		log.Info("corby: no bins out today")
+	// We have to put the bins out the night before, so we only care
+	// about collections that are taking place tomorrow. If there are
+	// no collections for tomorrow then don't do anything.
+	tomorrow := time.Now().AddDate(0, 0, 6)
+	if len(nextCollections) == 0 || nextCollections[0].ParsedStart.Day() != tomorrow.Day() {
+		log.Info("corby: no collections pending")
 		return nil, whatbin.ErrNoBinsToday
 	}
 
-	log.WithField("bins", binsOut).Info("corby: bins out today")
+	// We have collections for tomorrow, so let's figure out the friendly bin
+	// names and return them for alerting.
+	var bins []string
+	for _, collection := range nextCollections {
+		bins = append(bins, p.commonBinName(collection.Title))
+	}
 
-	return binsOut, nil
+	log.WithField("bins", bins).Info("corby: bins for collection tomorrow")
+
+	return bins, nil
 }
 
-func (p *Provider) identify(t string) (BinColour, error) {
-	if strings.Index(t, "Garden Waste") == 0 {
-		return Green, nil
-	}
+func (p *Provider) getNextCollectionData() ([]*collectionData, error) {
+	// We're going to follow the request format that the website uses,
+	// which requests the next 7 days of data. Changing the end date
+	// doesn't seem to have much effect on the amount of data returned
+	// so we'll just roll with it.
+	start := time.Now().Format("2006-01-02")
+	end := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
+	var data []*collectionData
 
-	if strings.Index(t, "Recyclable Waste") == 0 {
-		return Blue, nil
-	}
+	resp, err := p.client.R().
+		SetSuccessResult(&data).
+		SetPathParams(map[string]string{
+			"uprn":  p.UPRN,
+			"start": start,
+			"end":   end,
+		}).Get("/{uprn}/{start}/{end}")
 
-	if strings.Index(t, "Food Waste") == 0 {
-		return FoodWaste, nil
-	}
-
-	if strings.Index(t, "Non Recyclable Waste") == 0 {
-		return Black, nil
-	}
-
-	return BinColour(""), fmt.Errorf("corby: unable to identify bin colour for '%s'", t)
-}
-
-func (p *Provider) binOut(d string) (bool, error) {
-	if d == "Tomorrow" {
-		return true, nil
-	}
-
-	if strings.Contains(d, "null") || d == "Today" {
-		return false, nil
-	}
-
-	// Seem to be inserting extra data in the date field, remove it
-	d = strings.Replace(d, "Empty Garden 240L ", "", 1)
-
-	t, err := time.Parse("Monday, 02 January 2006", d)
 	if err != nil {
-		return false, err
+		return nil, fmt.Errorf("corby: %s", err)
 	}
 
-	if dateutils.OutTomorrow(t) {
-		return true, nil
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("corby: unexpected status code %d", resp.StatusCode)
 	}
-	return false, nil
+
+	if len(data) == 0 {
+		return nil, fmt.Errorf("corby: no data returned")
+	}
+
+	err = p.parseDates(data)
+	if err != nil {
+		return nil, err
+	}
+
+	return p.filterCollections(data)
+}
+
+func (p *Provider) filterCollections(data []*collectionData) ([]*collectionData, error) {
+	// The data returned contains past events, and we only care about future ones.
+	// Remove any events that are in the past.
+	data = slices.DeleteFunc(data, func(cd *collectionData) bool {
+		return time.Now().After(cd.ParsedStart)
+	})
+
+	// Sort the remaining data by start date
+	slices.SortFunc(data, func(i, j *collectionData) int {
+		if i.ParsedStart.Before(j.ParsedStart) {
+			return -1
+		}
+		if i.ParsedStart.After(j.ParsedStart) {
+			return 1
+		}
+		return 0
+	})
+
+	// Pop the next date off, then delete anything that isn't that date to get
+	// the next set of collections.
+	nextDate := data[0].ParsedStart
+	data = slices.DeleteFunc(data, func(cd *collectionData) bool {
+		return cd.ParsedStart != nextDate
+	})
+
+	return data, nil
+}
+
+func (p *Provider) parseDates(data []*collectionData) error {
+	var err error
+	for i := range data {
+		if data[i].Start != "" {
+			data[i].ParsedStart, err = p.convertDate(data[i].Start)
+			if err != nil {
+				log.WithError(err).WithField("start", data[i].Start).Error("corby: failed to convert start date")
+			}
+		}
+
+		if data[i].End != "" {
+			data[i].ParsedEnd, err = p.convertDate(data[i].End)
+			if err != nil {
+				log.WithError(err).WithField("end", data[i].End).Error("corby: failed to convert end date")
+			}
+		}
+	}
+
+	return nil
+}
+
+func (p *Provider) convertDate(date string) (time.Time, error) {
+	// The date format is "/Date(1612348800000)/", we need to remove the rubbish
+	// and convert the Unix timestamp to a time.Time object.
+	date = strings.ReplaceAll(date, "/Date(", "")
+	date = strings.ReplaceAll(date, ")/", "")
+
+	epoch, err := strconv.ParseInt(date, 10, 64)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("corby: %s", err)
+	}
+
+	return time.Unix(epoch/1000, 0), nil
+}
+
+func (p *Provider) commonBinName(bin string) string {
+	bin = strings.ToLower(strings.TrimSpace(bin))
+	switch {
+	case strings.Contains(bin, "refuse"), strings.Contains(bin, "authorised bin"):
+		return "Black"
+	case strings.Contains(bin, "recycling"):
+		return "Blue"
+	case strings.Contains(bin, "garden"):
+		return "Green"
+	case strings.Contains(bin, "food caddy"), strings.Contains(bin, "communal food bin"):
+		return "Food"
+	default:
+		return fmt.Sprintf("Unknown (%s)", bin)
+	}
 }
